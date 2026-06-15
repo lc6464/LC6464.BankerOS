@@ -1,0 +1,521 @@
+﻿@page "/"
+@implements IDisposable
+@inject BankerStateService Banker
+@inject IJSRuntime JS
+
+<PageTitle>LC6464.BankerOS</PageTitle>
+
+@if (!isReady) {
+	<div class="power-screen">
+		<p class="power-screen__loading">正在恢复系统状态...</p>
+	</div>
+} else if (screenState == ScreenState.PoweredOff) {
+	<div class="power-screen">
+		<button class="power-screen__button" @onclick="PowerOnAsync">Power On</button>
+	</div>
+} else {
+	var state = Banker.State;
+	var need = Banker.Need;
+	var available = Banker.Available;
+	var safety = Banker.SafetyResult;
+	var allocated = GetAllocated();
+	var statusLabel = GetSafetyLabel(safety.Status);
+	var statusClass = GetSafetyClass(safety.Status);
+
+	<div class="desktop-shell">
+		<header class="top-bar">
+			<div class="top-bar__left">
+				<button class="power-button" title="关机" @onclick="ShutDown">●</button>
+				<button class="top-bar__tool-button" title="重设到默认状态" @onclick="ResetSystemAsync">重设</button>
+				<strong class="top-bar__brand">LC6464.BankerOS</strong>
+			</div>
+
+			<div class="top-bar__center">
+				<span class="status-chip">进程数量 @state.ProcessCount</span>
+				<span class="status-chip">资源种类 @state.ResourceCount</span>
+				<span class="status-chip @statusClass">@statusLabel</span>
+			</div>
+
+			<div class="top-bar__right">
+				<span class="status-chip">Available @FormatVector(available)</span>
+				<time class="top-bar__clock">@clockText</time>
+			</div>
+		</header>
+
+		<div class="banker-shell">
+			<header class="hero-panel">
+				<div class="hero-panel__main">
+					<h1>银行家算法交互展示台</h1>
+					<p class="hero-text">LC6464 的操作系统课程设计</p>
+					<input
+						class="hero-panel__student-input"
+						type="text"
+						inputmode="numeric"
+						maxlength="12"
+						placeholder="请输入12位学号，按 Enter 确认"
+						value="@Banker.StudentNumber"
+						@oninput="OnStudentNumberInput"
+						@onkeydown="OnStudentNumberKeyDownAsync" />
+				</div>
+				@if (!string.IsNullOrWhiteSpace(Banker.SystemNotification)) {
+					<aside class="notice-card hero-panel__notice @(Banker.IsSystemNotificationSuccess ? "notice-card--ok" : "notice-card--fail")">
+						<strong>@(Banker.IsSystemNotificationSuccess ? "系统通知" : "输入有误")</strong>
+						<span>@Banker.SystemNotification</span>
+					</aside>
+				}
+			</header>
+
+			<section class="dashboard-grid">
+				<aside class="panel control-panel">
+					<div class="panel__header panel__header--inline">
+						<h2>系统管理区</h2>
+						<div class="mini-toolbar">
+							<span class="mini-toolbar__count">@state.ResourceCount</span>
+							<svg class="icon-action" viewBox="0 0 1024 1024" role="button" tabindex="0" aria-label="增加资源" @onclick="Banker.AddResourceAsync" @onkeydown="eventArgs => OnIconKeyDownAsync(eventArgs, Banker.AddResourceAsync)">
+								<path d="M352 480h320a32 32 0 1 1 0 64H352a32 32 0 0 1 0-64"></path>
+								<path d="M480 672V352a32 32 0 1 1 64 0v320a32 32 0 0 1-64 0"></path>
+								<path d="M512 896a384 384 0 1 0 0-768 384 384 0 0 0 0 768m0 64a448 448 0 1 1 0-896 448 448 0 0 1 0 896"></path>
+							</svg>
+							<svg class="icon-action" viewBox="0 0 1024 1024" role="button" tabindex="0" aria-label="减少资源" @onclick="Banker.RemoveResourceAsync" @onkeydown="eventArgs => OnIconKeyDownAsync(eventArgs, Banker.RemoveResourceAsync)">
+								<path d="M352 480h320a32 32 0 1 1 0 64H352a32 32 0 0 1 0-64"></path>
+								<path d="M512 896a384 384 0 1 0 0-768 384 384 0 0 0 0 768m0 64a448 448 0 1 1 0-896 448 448 0 0 1 0 896"></path>
+							</svg>
+						</div>
+					</div>
+
+					<div class="matrix-table-wrap scroll-frame scroll-frame--resources">
+						<table class="matrix-table matrix-table--resource">
+							<thead>
+								<tr>
+									<th class="resource-index-column">资源序号</th>
+									<th>Total</th>
+								</tr>
+							</thead>
+							<tbody>
+								@for (var resource = 0; resource < state.ResourceCount; resource++) {
+									var capturedResource = resource;
+									<tr>
+										<th>@resource</th>
+										<td>
+											<input @key="@GetInputKey("Total", 0, capturedResource)" type="number" min="0" max="99" value="@state.Total[resource]" @onchange="eventArgs => SetTotalAsync(capturedResource, eventArgs)" />
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					</div>
+				</aside>
+
+				<section class="panel matrix-panel">
+					<div class="panel__header panel__header--inline">
+						<h2>进程管理区</h2>
+						<div class="mini-toolbar">
+							<span class="mini-toolbar__count">@state.ProcessCount</span>
+							<svg class="icon-action" viewBox="0 0 1024 1024" role="button" tabindex="0" aria-label="增加进程" @onclick="Banker.AddProcessAsync" @onkeydown="eventArgs => OnIconKeyDownAsync(eventArgs, Banker.AddProcessAsync)">
+								<path d="M352 480h320a32 32 0 1 1 0 64H352a32 32 0 0 1 0-64"></path>
+								<path d="M480 672V352a32 32 0 1 1 64 0v320a32 32 0 0 1-64 0"></path>
+								<path d="M512 896a384 384 0 1 0 0-768 384 384 0 0 0 0 768m0 64a448 448 0 1 1 0-896 448 448 0 0 1 0 896"></path>
+							</svg>
+							<svg class="icon-action" viewBox="0 0 1024 1024" role="button" tabindex="0" aria-label="减少进程" @onclick="Banker.RemoveProcessAsync" @onkeydown="eventArgs => OnIconKeyDownAsync(eventArgs, Banker.RemoveProcessAsync)">
+								<path d="M352 480h320a32 32 0 1 1 0 64H352a32 32 0 0 1 0-64"></path>
+								<path d="M512 896a384 384 0 1 0 0-768 384 384 0 0 0 0 768m0 64a448 448 0 1 1 0-896 448 448 0 0 1 0 896"></path>
+							</svg>
+						</div>
+					</div>
+
+					<div class="matrix-columns matrix-columns--two">
+						<MatrixEditor Title="Max" Matrix="state.Max" InputRevision="inputRevision" OnCellChanged="OnMatrixCellChangedAsync" />
+						<MatrixEditor Title="Allocation" Matrix="state.Allocation" InputRevision="inputRevision" OnCellChanged="OnMatrixCellChangedAsync" />
+					</div>
+				</section>
+
+				<aside class="panel monitor-panel">
+					<div class="panel__header">
+						<h2>资源监视区</h2>
+					</div>
+
+					<div class="monitor-list scroll-frame scroll-frame--monitor">
+						@for (var resource = 0; resource < state.ResourceCount; resource++) {
+							var used = allocated[resource];
+							var free = available[resource];
+							var usage = state.Total[resource] == 0 ? 0 : used * 100 / state.Total[resource];
+							var freeWidth = Math.Max(0, 100 - Math.Clamp(usage, 0, 100));
+							<div class="resource-meter">
+								<div class="resource-meter__top">
+									<strong>R@(resource)</strong>
+									<span>Total @state.Total[resource]</span>
+								</div>
+								<div class="meter-track">
+									<div class="meter-used" style="width: @Math.Clamp(usage, 0, 100)%">
+										@if (used > 0) {
+											<span class="meter-label meter-label--used">@used</span>
+										}
+									</div>
+									<div class="meter-available" style="width: @freeWidth%">
+										@if (free > 0) {
+											<span class="meter-label meter-label--available">@free</span>
+										}
+									</div>
+								</div>
+								<div class="resource-meter__need">
+									<span>Need</span>
+									<strong class="resource-meter__need-values">@FormatNeedColumn(need, resource)</strong>
+								</div>
+							</div>
+						}
+					</div>
+				</aside>
+			</section>
+
+			<section class="bottom-grid">
+				<section class="panel trace-panel">
+					<div class="panel__header">
+						<h2>安全推演区</h2>
+						<div class="sequence-pill @GetSequenceClass(safety.Status)">
+							@GetSequenceText(safety)
+						</div>
+					</div>
+
+					<div class="trace-list">
+						@if (!safety.IsValid) {
+							<div class="empty-state empty-state--error">@safety.Message</div>
+						} else {
+							@foreach (var step in safety.Steps) {
+								<article class="trace-item @(step.CanFinish ? "trace-item--ok" : "trace-item--wait")">
+									<strong>第 @step.Round 轮 · P@(step.ProcessIndex)</strong>
+									@if (step.CanFinish) {
+										<code>Available @FormatVector(step.WorkBefore) -> @FormatVector(step.WorkAfter)</code>
+									} else {
+										<code class="trace-item__reason">@step.Message</code>
+									}
+								</article>
+							}
+
+							@if (!safety.IsSafe) {
+								<article class="trace-item trace-item--end">
+									<div>
+										<strong>终止</strong>
+									</div>
+									<code class="trace-item__reason">@safety.Message</code>
+								</article>
+							}
+						}
+					</div>
+				</section>
+
+				<section class="panel request-panel">
+					<div class="panel__header">
+						<h2>请求分配区</h2>
+					</div>
+
+					<label class="field">
+						<span>请求进程</span>
+						<select @key="@GetInputKey("RequestProcess", 0, 0)" value="@Banker.CurrentRequest.ProcessIndex" @onchange="OnRequestProcessChangedAsync">
+							@for (var process = 0; process < state.ProcessCount; process++) {
+								<option value="@process">P@(process)</option>
+							}
+						</select>
+					</label>
+
+					<div class="vector-editor">
+						@for (var resource = 0; resource < state.ResourceCount; resource++) {
+							var capturedResource = resource;
+							<label>
+								<span>@resource</span>
+								<input @key="@GetInputKey("Request", 0, capturedResource)" type="number" min="0" max="99" value="@Banker.CurrentRequest.Resources[resource]" @onchange="eventArgs => SetRequestResourceAsync(capturedResource, eventArgs)" />
+							</label>
+						}
+					</div>
+
+					@if (Banker.PendingAllocation is null) {
+						<button class="button button--block" @onclick="TryAllocateAsync">尝试分配</button>
+					} else {
+						<div class="request-actions request-actions--split">
+							<button class="button button--confirm" @onclick="ConfirmAllocationAsync">确认分配</button>
+							<button class="button button--secondary" @onclick="CancelPendingAllocationAsync">取消</button>
+						</div>
+					}
+
+					@if (Banker.LastRequestResult is not null) {
+						var requestResultTitle = Banker.PendingAllocation is null && Banker.LastRequestResult.Accepted
+							? "已确认"
+							: Banker.LastRequestResult.Accepted
+								? "等待确认"
+								: "已拒绝";
+						<div class="request-result @(Banker.LastRequestResult.Accepted ? "request-result--ok" : "request-result--fail")">
+							<strong>@requestResultTitle</strong>
+							<span>@Banker.LastRequestResult.Message</span>
+						</div>
+					}
+				</section>
+			</section>
+		</div>
+	</div>
+}
+
+@code {
+	private enum ScreenState {
+		Running,
+		PoweredOff
+	}
+
+	private PeriodicTimer? clockTimer;
+	private string clockText = DateTime.Now.ToString("HH:mm:ss");
+	private long inputRevision;
+	private ScreenState screenState = ScreenState.Running;
+	private bool isReady;
+
+	protected override async Task OnInitializedAsync() {
+		await Banker.InitializeAsync();
+		isReady = true;
+		clockTimer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+		_ = RunClockAsync();
+	}
+
+	/// <summary>
+	/// 释放页面级定时器资源，避免离开页面后继续触发时钟刷新。
+	/// </summary>
+	public void Dispose() {
+		clockTimer?.Dispose();
+	}
+
+	/// <summary>
+	/// 持续刷新顶部时钟文本，直到页面销毁。
+	/// </summary>
+	/// <returns>表示时钟循环的异步任务</returns>
+	private async Task RunClockAsync() {
+		if (clockTimer is null) {
+			return;
+		}
+
+		while (await clockTimer.WaitForNextTickAsync()) {
+			clockText = DateTime.Now.ToString("HH:mm:ss");
+			await InvokeAsync(StateHasChanged);
+		}
+	}
+
+	/// <summary>
+	/// 将界面切换到关机屏。
+	/// </summary>
+	private void ShutDown() {
+		screenState = ScreenState.PoweredOff;
+		StateHasChanged();
+	}
+
+	/// <summary>
+	/// 播放开机动画并恢复主界面显示。
+	/// </summary>
+	/// <returns>表示开机流程的异步任务</returns>
+	private async Task PowerOnAsync() {
+		await JS.InvokeVoidAsync("bankerBoot.playOverlayBoot");
+		screenState = ScreenState.Running;
+		await InvokeAsync(StateHasChanged);
+	}
+
+	/// <summary>
+	/// 恢复默认预设，并强制输入控件按最新状态重新渲染。
+	/// </summary>
+	/// <returns>表示重设流程的异步任务</returns>
+	private async Task ResetSystemAsync() {
+		await Banker.ResetToDefaultAsync();
+		ResetInputRevision();
+	}
+
+	/// <summary>
+	/// 根据请求进程下拉框输入更新当前请求目标进程。
+	/// </summary>
+	/// <param name="eventArgs">下拉框变更事件参数</param>
+	/// <returns>表示请求进程更新过程的任务</returns>
+	private async Task OnRequestProcessChangedAsync(ChangeEventArgs eventArgs) {
+		var updated = await Banker.SetRequestProcessAsync(Convert.ToString(eventArgs.Value));
+		if (!updated) {
+			ResetInputRevision();
+		}
+	}
+
+	/// <summary>
+	/// 根据资源总量输入框内容更新指定资源的 Total 值。
+	/// </summary>
+	/// <param name="resource">目标资源下标</param>
+	/// <param name="eventArgs">输入框变更事件参数</param>
+	/// <returns>表示总量更新过程的任务</returns>
+	private async Task SetTotalAsync(int resource, ChangeEventArgs eventArgs) {
+		var updated = await Banker.SetTotalAsync(resource, Convert.ToString(eventArgs.Value));
+		if (!updated) {
+			ResetInputRevision();
+		}
+	}
+
+	/// <summary>
+	/// 根据矩阵单元格输入内容更新 Max 或 Allocation 中的指定位置。
+	/// </summary>
+	/// <param name="matrixName">目标矩阵名称</param>
+	/// <param name="process">目标进程下标</param>
+	/// <param name="resource">目标资源下标</param>
+	/// <param name="eventArgs">输入框变更事件参数</param>
+	/// <returns>表示矩阵更新过程的任务</returns>
+	private async Task SetMatrixValueAsync(string matrixName, int process, int resource, ChangeEventArgs eventArgs) {
+		var updated = await Banker.SetMatrixValueAsync(matrixName, process, resource, Convert.ToString(eventArgs.Value));
+		if (!updated) {
+			ResetInputRevision();
+		}
+	}
+
+	/// <summary>
+	/// 将矩阵组件中的单元格修改事件转交给页面状态服务处理。
+	/// </summary>
+	/// <param name="change">矩阵名称、坐标与输入事件</param>
+	/// <returns>表示矩阵更新过程的任务</returns>
+	private Task OnMatrixCellChangedAsync((string MatrixName, int ProcessIndex, int ResourceIndex, ChangeEventArgs EventArgs) change) =>
+		SetMatrixValueAsync(change.MatrixName, change.ProcessIndex, change.ResourceIndex, change.EventArgs);
+
+	/// <summary>
+	/// 根据请求向量输入框内容更新某一项请求资源值。
+	/// </summary>
+	/// <param name="resource">目标资源下标</param>
+	/// <param name="eventArgs">输入框变更事件参数</param>
+	/// <returns>表示请求向量更新过程的任务</returns>
+	private async Task SetRequestResourceAsync(int resource, ChangeEventArgs eventArgs) {
+		var updated = await Banker.SetRequestResourceAsync(resource, Convert.ToString(eventArgs.Value));
+		if (!updated) {
+			ResetInputRevision();
+		}
+	}
+
+	/// <summary>
+	/// 触发一次试探分配。
+	/// </summary>
+	/// <returns>表示试探分配过程的任务</returns>
+	private Task TryAllocateAsync() => Banker.TryAllocateRequestAsync();
+
+	/// <summary>
+	/// 确认当前待提交的试探分配。
+	/// </summary>
+	/// <returns>表示确认分配过程的任务</returns>
+	private Task ConfirmAllocationAsync() => Banker.ConfirmAllocationAsync();
+
+	/// <summary>
+	/// 取消当前待提交的试探分配。
+	/// </summary>
+	/// <returns>表示取消分配过程的任务</returns>
+	private Task CancelPendingAllocationAsync() => Banker.CancelPendingAllocationAsync();
+
+	/// <summary>
+	/// 在用户输入学号时同步更新服务层中的学号文本。
+	/// </summary>
+	/// <param name="eventArgs">输入框变更事件参数</param>
+	private void OnStudentNumberInput(ChangeEventArgs eventArgs) =>
+		Banker.SetStudentNumber(Convert.ToString(eventArgs.Value) ?? string.Empty);
+
+	/// <summary>
+	/// 让图标按钮支持 Enter 和空格键触发，与原生按钮键盘行为保持一致。
+	/// </summary>
+	/// <param name="eventArgs">键盘事件参数</param>
+	/// <param name="action">需要执行的异步操作</param>
+	/// <returns>命中快捷键时执行操作，否则返回已完成任务</returns>
+	private Task OnIconKeyDownAsync(KeyboardEventArgs eventArgs, Func<Task> action) =>
+		eventArgs.Key is "Enter" or " "
+			? action()
+			: Task.CompletedTask;
+
+	/// <summary>
+	/// 在学号输入框中按 Enter 时应用学号预设。
+	/// </summary>
+	/// <param name="eventArgs">键盘事件参数</param>
+	/// <returns>按下 Enter 时执行预设应用流程，否则返回已完成任务</returns>
+	private Task OnStudentNumberKeyDownAsync(KeyboardEventArgs eventArgs) =>
+		eventArgs.Key == "Enter"
+			? Banker.ApplyStudentNumberPresetAsync()
+			: Task.CompletedTask;
+
+	/// <summary>
+	/// 汇总当前每类资源的已分配总量，用于资源监视区展示。
+	/// </summary>
+	/// <returns>与资源种类数量等长的已分配向量</returns>
+	private int[] GetAllocated() {
+		var allocated = new int[Banker.State.ResourceCount];
+
+		for (var process = 0; process < Banker.State.ProcessCount; process++) {
+			for (var resource = 0; resource < Banker.State.ResourceCount; resource++) {
+				allocated[resource] += Banker.State.Allocation[process, resource];
+			}
+		}
+
+		return allocated;
+	}
+
+	/// <summary>
+	/// 为每个输入控件生成稳定键，并在需要时通过修订号强制重建控件。
+	/// </summary>
+	/// <param name="area">输入所在区域</param>
+	/// <param name="process">进程下标</param>
+	/// <param name="resource">资源下标</param>
+	/// <returns>可用于 <c>@key</c> 的键值</returns>
+	private string GetInputKey(string area, int process, int resource) => $"{area}:{process}:{resource}:{inputRevision}";
+
+	/// <summary>
+	/// 在服务层拒绝更新后递增修订号，迫使输入控件按真实状态重新渲染。
+	/// </summary>
+	private void ResetInputRevision() => inputRevision++;
+
+	/// <summary>
+	/// 将整型向量格式化为形如 <c>[1, 2, 3]</c> 的文本。
+	/// </summary>
+	/// <param name="vector">待格式化的向量</param>
+	/// <returns>适合界面显示的向量字符串</returns>
+	private static string FormatVector(int[] vector) => "[" + string.Join(", ", vector) + "]";
+
+	/// <summary>
+	/// 将安全状态枚举转换为顶部状态标签文案。
+	/// </summary>
+	/// <param name="status">安全状态枚举值</param>
+	/// <returns>显示在界面上的中文状态文本</returns>
+	private static string GetSafetyLabel(SafetyStatus status) => status switch {
+		SafetyStatus.Safe => "安全",
+		SafetyStatus.Unsafe => "不安全",
+		_ => "无效数据"
+	};
+
+	/// <summary>
+	/// 将安全状态枚举映射为顶部状态标签的 CSS 类名。
+	/// </summary>
+	/// <param name="status">安全状态枚举值</param>
+	/// <returns>对应状态样式的类名</returns>
+	private static string GetSafetyClass(SafetyStatus status) => status switch {
+		SafetyStatus.Safe => "status-chip--safe",
+		SafetyStatus.Unsafe => "status-chip--unsafe",
+		_ => "status-chip--invalid"
+	};
+
+	/// <summary>
+	/// 将安全状态枚举映射为安全序列徽章的 CSS 类名。
+	/// </summary>
+	/// <param name="status">安全状态枚举值</param>
+	/// <returns>对应序列徽章样式的类名</returns>
+	private static string GetSequenceClass(SafetyStatus status) => status switch {
+		SafetyStatus.Safe => "sequence-pill--safe",
+		SafetyStatus.Unsafe => "sequence-pill--unsafe",
+		_ => "sequence-pill--invalid"
+	};
+
+	/// <summary>
+	/// 将安全检测结果格式化为安全序列区展示文本。
+	/// </summary>
+	/// <param name="safety">当前安全性检测结果</param>
+	/// <returns>安全时返回完整序列，不安全时返回已完成前缀加终止标记</returns>
+	private static string GetSequenceText(SafetyCheckResult safety) => safety.Status switch {
+		SafetyStatus.Invalid => "无效数据",
+		SafetyStatus.Safe => string.Join(" -> ", safety.SafeSequence.Select(process => $"P{process}")),
+		_ when safety.SafeSequence.Count == 0 => "X",
+		_ => string.Join(" -> ", safety.SafeSequence.Select(process => $"P{process}").Append("X"))
+	};
+
+	/// <summary>
+	/// 将某一列 Need 值格式化为资源监视区中的紧凑文本。
+	/// </summary>
+	/// <param name="need">当前 Need 矩阵</param>
+	/// <param name="resourceIndex">目标资源列下标</param>
+	/// <returns>形如 <c>P0:1, P1:0, P2:3</c> 的文本</returns>
+	private string FormatNeedColumn(int[,] need, int resourceIndex) =>
+		string.Join(", ", Enumerable.Range(0, Banker.State.ProcessCount).Select(process => $"P{process}:{need[process, resourceIndex]}"));
+}

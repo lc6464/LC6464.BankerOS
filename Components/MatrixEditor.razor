@@ -1,0 +1,52 @@
+﻿<div class="matrix-section">
+	<h3>@Title</h3>
+
+	<div class="matrix-table-wrap scroll-frame scroll-frame--processes">
+		<table class="matrix-table matrix-table--process">
+			<thead>
+				<tr>
+					<th class="matrix-table__index-column">P/X</th>
+					@for (var resource = 0; resource < Matrix.GetLength(1); resource++) {
+						<th>@resource</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				@for (var process = 0; process < Matrix.GetLength(0); process++) {
+					<tr>
+						<th class="matrix-table__index-column">@($"P{process}")</th>
+						@for (var resource = 0; resource < Matrix.GetLength(1); resource++) {
+							var capturedProcess = process;
+							var capturedResource = resource;
+							<td>
+								<input
+									@key="GetInputKey(capturedProcess, capturedResource)"
+									type="number"
+									min="0"
+									max="99"
+									value="@Matrix[capturedProcess, capturedResource]"
+									@onchange="eventArgs => OnCellChanged.InvokeAsync((Title, capturedProcess, capturedResource, eventArgs))" />
+							</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+</div>
+
+@code {
+	[Parameter, EditorRequired]
+	public string Title { get; set; } = string.Empty;
+
+	[Parameter, EditorRequired]
+	public int[,] Matrix { get; set; } = default!;
+
+	[Parameter]
+	public long InputRevision { get; set; }
+
+	[Parameter, EditorRequired]
+	public EventCallback<(string MatrixName, int ProcessIndex, int ResourceIndex, ChangeEventArgs EventArgs)> OnCellChanged { get; set; }
+
+	private string GetInputKey(int processIndex, int resourceIndex) => $"{Title}:{processIndex}:{resourceIndex}:{InputRevision}";
+}
