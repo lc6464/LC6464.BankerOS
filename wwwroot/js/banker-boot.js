@@ -1,6 +1,5 @@
 const fastRevealWindowMs = 3000;
 const quickFinishWindowMs = 1000;
-const maxSlowBootWindowMs = 10000;
 const earlyMinDelayMs = 70;
 const earlyMaxDelayMs = 240;
 const slowMinDelayMs = 280;
@@ -103,8 +102,8 @@ async function playBoot(options) {
             break;
         }
 
-        if (now >= nextRevealAt || elapsed >= maxSlowBootWindowMs) {
-            if (elapsed < fastRevealWindowMs || elapsed >= maxSlowBootWindowMs) {
+        if (now >= nextRevealAt) {
+            if (elapsed < fastRevealWindowMs) {
                 appendLine(bootLog, startTime, 0, lines[lineIndex]);
                 lineIndex++;
                 nextRevealAt = now + randomBetween(earlyMinDelayMs, earlyMaxDelayMs);
