@@ -9,17 +9,17 @@ public sealed record StoredBankerState {
 	/// <summary>
 	/// Total 向量。
 	/// </summary>
-	public int[] Total { get; init; } = [];
+	public int[] Total { get; init; } = []; // skipcq: CS-W1096 这是浏览器存储 DTO，序列化/反序列化需要直接承载数组结构，从简直接暴露数组本身
 
 	/// <summary>
 	/// Max 矩阵的锯齿数组表示。
 	/// </summary>
-	public int[][] Max { get; init; } = [];
+	public int[][] Max { get; init; } = []; // skipcq: CS-W1096 存储快照保持锯齿数组能减少转换复杂度，从简直接暴露数组本身
 
 	/// <summary>
 	/// Allocation 矩阵的锯齿数组表示。
 	/// </summary>
-	public int[][] Allocation { get; init; } = [];
+	public int[][] Allocation { get; init; } = []; // skipcq: CS-W1096 该类型只用于持久化快照搬运，从简直接暴露数组本身
 
 	/// <summary>
 	/// 尝试将存储快照恢复为运行时状态。

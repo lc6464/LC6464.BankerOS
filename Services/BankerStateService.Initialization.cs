@@ -66,7 +66,7 @@ public sealed partial class BankerStateService {
 			return false;
 		}
 
-		if (!value.All(char.IsDigit)) {
+		if (!value.All(static character => character is >= '0' and <= '9')) {
 			errorMessage = "学号必须为 12 位纯数字";
 			return false;
 		}
@@ -74,12 +74,12 @@ public sealed partial class BankerStateService {
 		// 对本专业学号保留班级号解析，对其他情况按转专业默认规则退化处理
 		if (value.StartsWith("202421314", StringComparison.Ordinal)) {
 			classNumber = value[9] - '0';
-			studentValue = int.Parse(value.AsSpan(10, 2), CultureInfo.InvariantCulture);
+			studentValue = int.Parse(value.AsSpan(10, 2), CultureInfo.InvariantCulture); // skipcq: CS-R1004 此处已先严格校验长度与 ASCII 数字范围，解析固定两位切片不会失败
 			return true;
 		}
 
 		classNumber = 0;
-		studentValue = int.Parse(value.AsSpan(10, 2), CultureInfo.InvariantCulture);
+		studentValue = int.Parse(value.AsSpan(10, 2), CultureInfo.InvariantCulture); // skipcq: CS-R1004 此处已先严格校验长度与 ASCII 数字范围，解析固定两位切片不会失败
 		return true;
 	}
 

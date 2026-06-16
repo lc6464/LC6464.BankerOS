@@ -11,8 +11,8 @@ namespace LC6464.BankerOS.Services;
 /// </remarks>
 public sealed partial class BankerStateService {
 	private readonly BankerStatePersistenceService persistenceService;
-	private bool isInitialized;
-	private CancellationTokenSource? systemNotificationClearCts;
+	private bool isInitialized; // skipcq: CS-R1137 DeepSource 误报：该字段会在 Initialization 分片中从 false 切换为 true
+	private CancellationTokenSource? systemNotificationClearCts; // skipcq: CS-R1137 DeepSource 误报：该字段会在 StateEditing 分片中被创建、取消、释放并置空，用于通知自动清理
 
 	/// <summary>
 	/// 初始化状态服务。

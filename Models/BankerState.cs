@@ -16,17 +16,17 @@ public sealed record BankerState {
 	/// <summary>
 	/// 每类资源的系统总量。
 	/// </summary>
-	public int[] Total { get; }
+	public int[] Total { get; } // skipcq: CS-W1096 课设界面需要直接编辑 Total 向量，从简直接暴露数组本身
 
 	/// <summary>
 	/// 每个进程对每类资源声明的最大需求矩阵。
 	/// </summary>
-	public int[,] Max { get; }
+	public int[,] Max { get; } // skipcq: CS-W1096 课设界面需要直接绑定和编辑 Max 矩阵，从简直接暴露数组本身
 
 	/// <summary>
 	/// 当前已经分配给每个进程的资源矩阵。
 	/// </summary>
-	public int[,] Allocation { get; }
+	public int[,] Allocation { get; } // skipcq: CS-W1096 Allocation 矩阵需要被算法和界面原位更新，从简直接暴露数组本身
 
 	/// <summary>
 	/// 系统中的进程数量。

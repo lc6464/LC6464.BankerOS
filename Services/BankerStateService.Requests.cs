@@ -82,7 +82,7 @@ public sealed partial class BankerStateService {
 			return;
 		}
 
-		if (!requestResources.Any(resource => resource > 0)) {
+		if (requestResources.All(resource => resource <= 0)) {
 			PendingAllocation = null;
 			LastRequestResult = new RequestResult(
 				false,
