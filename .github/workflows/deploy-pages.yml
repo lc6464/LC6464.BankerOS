@@ -27,16 +27,19 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Install WebAssembly build tools
+        run: dotnet workload install wasm-tools
+
       - name: Restore dependencies
         run: dotnet restore LC6464.BankerOS.csproj
 
       - name: Publish Blazor WebAssembly
-        run: dotnet publish LC6464.BankerOS.csproj -c Release --no-restore --nologo
+        run: dotnet publish LC6464.BankerOS.csproj -c Release --no-restore --nologo -p:PublishTrimmed=true
 
       - name: Prepare GitHub Pages files
         shell: pwsh
         run: |
-          $siteRoot = Join-Path $env:GITHUB_WORKSPACE 'bin/Release/net10.0/browser-wasm/publish/wwwroot'
+          $siteRoot = Join-Path $env:GITHUB_WORKSPACE 'bin/Release/net10.0/publish/wwwroot'
           $repositoryName = $env:GITHUB_REPOSITORY.Split('/')[1]
           $basePath = "/$repositoryName/"
 
@@ -84,7 +87,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: bin/Release/net10.0/browser-wasm/publish/wwwroot
+          path: bin/Release/net10.0/publish/wwwroot
 
   deploy:
     needs: build
