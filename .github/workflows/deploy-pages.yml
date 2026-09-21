@@ -1,0 +1,98 @@
+name: Deploy Blazor WebAssembly to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore LC6464.BankerOS.csproj
+
+      - name: Publish Blazor WebAssembly
+        run: dotnet publish LC6464.BankerOS.csproj -c Release --no-restore --nologo
+
+      - name: Prepare GitHub Pages files
+        shell: pwsh
+        run: |
+          $siteRoot = Join-Path $env:GITHUB_WORKSPACE 'bin/Release/net10.0/browser-wasm/publish/wwwroot'
+          $repositoryName = $env:GITHUB_REPOSITORY.Split('/')[1]
+          $basePath = "/$repositoryName/"
+
+          $indexPath = Join-Path $siteRoot 'index.html'
+          $index = [System.IO.File]::ReadAllText($indexPath)
+          if (-not $index.Contains('<base href="/" />')) {
+            throw 'The expected base element was not found in index.html.'
+          }
+          $index = $index.Replace('<base href="/" />', "<base href=""$basePath"" />")
+          [System.IO.File]::WriteAllText($indexPath, $index, [System.Text.UTF8Encoding]::new($false))
+
+          $serviceWorkerPath = Join-Path $siteRoot 'service-worker.js'
+          $serviceWorker = [System.IO.File]::ReadAllText($serviceWorkerPath)
+          if (-not $serviceWorker.Contains('const base = "/";')) {
+            throw 'The expected base path was not found in service-worker.js.'
+          }
+          $serviceWorker = $serviceWorker.Replace('const base = "/";', "const base = ""$basePath"";")
+          [System.IO.File]::WriteAllText($serviceWorkerPath, $serviceWorker, [System.Text.UTF8Encoding]::new($false))
+
+          $assetsManifestPath = Join-Path $siteRoot 'service-worker-assets.js'
+          $assetsManifestScript = [System.IO.File]::ReadAllText($assetsManifestPath)
+          $assetsManifestJson = $assetsManifestScript -replace '^self\.assetsManifest\s*=\s*', '' -replace ';\s*$', ''
+          $assetsManifest = $assetsManifestJson | ConvertFrom-Json
+          $indexAsset = $assetsManifest.assets | Where-Object url -eq 'index.html'
+          if ($null -eq $indexAsset) {
+            throw 'index.html was not found in service-worker-assets.js.'
+          }
+          $indexHash = [System.Security.Cryptography.SHA256]::HashData([System.IO.File]::ReadAllBytes($indexPath))
+          $indexAsset.hash = 'sha256-' + [Convert]::ToBase64String($indexHash)
+          $assetsManifest.version = $env:GITHUB_SHA
+          $assetsManifestJson = $assetsManifest | ConvertTo-Json -Depth 10 -Compress
+          [System.IO.File]::WriteAllText($assetsManifestPath, "self.assetsManifest = $assetsManifestJson;", [System.Text.UTF8Encoding]::new($false))
+
+          # The publish target includes pre-compressed copies. Remove them after
+          # rewriting the files so Pages never serves stale content or hashes.
+          Get-ChildItem -Path $siteRoot -File -Include '*.br', '*.gz' -Recurse |
+            Remove-Item -Force
+
+          Copy-Item $indexPath (Join-Path $siteRoot '404.html')
+          New-Item -ItemType File -Path (Join-Path $siteRoot '.nojekyll') -Force | Out-Null
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: bin/Release/net10.0/browser-wasm/publish/wwwroot
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
